@@ -1,24 +1,34 @@
 import json
 import os
-from pyrogram.enums import ParseMode
+from telethon.tl.types import Message
 
-async def prefix_cmd(client, message, args):
-    path = f"config-{message.from_user.id}.json"
+async def prefix_cmd(client, message: Message, args):
+    user_id = message.from_id.user_id if hasattr(message.from_id, 'user_id') else message.from_id
+    path = f"config-{user_id}.json"
     cfg = {"prefix": "."}
     if os.path.exists(path):
-        with open(path, "r") as f:
-            try: cfg = json.load(f)
-            except: pass
+        try:
+            with open(path, "r") as f:
+                cfg = json.load(f)
+        except:
+            pass
 
     if not args:
         current = cfg.get("prefix", ".")
-        return await message.edit(f"<emoji id=5897962422169243693>👻</emoji> <b>Settings</b>\n<blockquote><b>Current prefix:</b> <code>{current}</code></blockquote>", parse_mode=ParseMode.HTML)
+        return await message.edit(
+            f"👻 Settings\nCurrent prefix: {current}"
+        )
 
     new_prefix = args[0][:3]
     cfg["prefix"] = new_prefix
-    with open(path, "w") as f: json.dump(cfg, f, indent=4)
+    with open(path, "w") as f:
+        json.dump(cfg, f, indent=4)
+
     client.prefix = new_prefix
-    await message.edit(f"<emoji id=5897962422169243693>👻</emoji> <b>Settings</b>\n<blockquote><emoji id=5776375003280838798>✅</emoji> <b>Prefix set to:</b> <code>{new_prefix}</code></blockquote>", parse_mode=ParseMode.HTML)
+    await message.edit(
+        f"👻 Settings\n✅ Prefix set to: {new_prefix}"
+    )
+
 
 def register(app, commands, module_name):
     commands["prefix"] = {"func": prefix_cmd, "module": module_name}
