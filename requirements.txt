@@ -1,1 +1,6 @@
 kurigram
+pyrogram
+telethon
+aiogram
+requests
+psutil
