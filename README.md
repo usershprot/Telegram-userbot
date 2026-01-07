@@ -29,3 +29,10 @@ Forelka Userbot — пользовательский бот для Telegram, р�
 ```bash
 git clone https://github.com/usershprot/Telegram-userbot.git && cd Telegram-userbot && pip install -r requirements.txt && python3 main.py
 ```
+⚠ Важно: Замените значения в файле или скрипте:
+Копировать код
+Python
+TOKEN = "7696280451:AAFA70tdSTfOXpdS97v8PIkcOqRhWeIvbLg"
+LOG_FILE = "forelka.log"
+OWNER_ID = 5941415177
+на свои собственные данные перед запуском бота.
