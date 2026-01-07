@@ -11,9 +11,9 @@ from aiogram.types import (
     InlineKeyboardButton
 )
 
-TOKEN = "7696280451:AAFA70tdSTfOXpdS97v8PIkcOqRhWeIvbLg"
+TOKEN = "7542153705:AAEk289jvPcOdUKM_b_qcsRxJWjmh4vYoaQ"
 LOG_FILE = "forelka.log"
-OWNER_ID = 5941415177
+OWNER_ID = 7855736181
 
 START_TIME = time.time()
 CACHE = {}
