@@ -1,32 +1,35 @@
 import sys
-from pyrogram.enums import ParseMode
+from telethon import events
+from telethon.tl.types import Message
 
-async def help_cmd(client, message, args):
+async def help_cmd(event: Message, client, args):
     pref = getattr(client, "prefix", ".")
     sys_mods, ext_mods = {}, {}
 
-    for cmd_name, info in client.commands.items():
+    for cmd_name, info in getattr(client, "commands", {}).items():
         mod_name = info.get("module", "unknown")
-        mod_path = getattr(sys.modules.get(mod_name), "__file__", "")
+        mod_obj = sys.modules.get(mod_name)
+        mod_path = getattr(mod_obj, "__file__", "") if mod_obj else ""
         target = ext_mods if "loaded_modules" in mod_path else sys_mods
         target.setdefault(mod_name, []).append(cmd_name)
 
     def format_mods(mods_dict):
         res = ""
         for mod, cmds in sorted(mods_dict.items()):
-            cmds_str = " | ".join([f"{pref}{c}" for c in sorted(cmds)])
-            res += f"<emoji id=5877468380125990242>➡️</emoji> <b>{mod}</b> (<code>{cmds_str}</code>)\n"
+            cmds_str = " | ".join(f"{pref}{c}" for c in sorted(cmds))
+            res += f"➡️ <b>{mod}</b> (<code>{cmds_str}</code>)\n"
         return res.strip()
 
-    text = f"<emoji id=5897962422169243693>👻</emoji> <b>Forelka Modules</b>\n\n"
+    text = "👻 <b>Forelka Modules</b>\n\n"
     if sys_mods:
-        text += f"<b>System:</b>\n<blockquote expandable>{format_mods(sys_mods)}</blockquote>\n\n"
+        text += f"<b>System:</b>\n<blockquote>{format_mods(sys_mods)}</blockquote>\n\n"
     if ext_mods:
-        text += f"<b>External:</b>\n<blockquote expandable>{format_mods(ext_mods)}</blockquote>"
+        text += f"<b>External:</b>\n<blockquote>{format_mods(ext_mods)}</blockquote>"
     else:
-        text += f"<b>External:</b>\n<blockquote>No external modules</blockquote>"
+        text += "<b>External:</b>\n<blockquote>No external modules</blockquote>"
 
-    await message.edit(text, parse_mode=ParseMode.HTML)
+    await event.edit(text, parse_mode="html")
 
-def register(app, commands, module_name):
-    commands["help"] = {"func": help_cmd, "module": module_name}
+
+def register(client, commands):
+    commands["help"] = help_cmd
