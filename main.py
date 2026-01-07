@@ -6,7 +6,6 @@ import subprocess
 import time
 
 from telethon import TelegramClient, events
-
 import loader
 
 
@@ -97,7 +96,8 @@ async def main():
         client = TelegramClient(sess[:-8], APP_CONFIG_API_ID, APP_CONFIG_API_HASH)
     else:
         temp = TelegramClient("temp", APP_CONFIG_API_ID, APP_CONFIG_API_HASH)
-        await temp.start()
+        print("📱 Введите номер телефона в формате +7ХXXXXXXXXX:")
+        await temp.start(phone=lambda: input("Номер телефона: "))
         me = await temp.get_me()
         await temp.disconnect()
         os.rename("temp.session", f"forelka-{me.id}.session")
@@ -124,9 +124,9 @@ async def main():
 
     try:
         loader.load_all(client)
-        print("Модули загружены успешно")
+        print("✅ Модули загружены успешно")
     except Exception as e:
-        print(f"Ошибка загрузки модулей: {e}")
+        print(f"❌ Ошибка загрузки модулей: {e}")
 
     git = "unknown"
     try:
