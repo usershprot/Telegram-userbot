@@ -5,14 +5,10 @@ import sys
 import subprocess
 import time
 
-from pyrogram import Client
-from pyrogram import idle
-from pyrogram import filters
-from pyrogram import utils
-from pyrogram.handlers import MessageHandler
-from pyrogram.handlers import EditedMessageHandler
+from telethon import TelegramClient, events
 
 import loader
+
 
 class TerminalLogger:
     def __init__(self):
@@ -24,7 +20,7 @@ class TerminalLogger:
             "RPC_CALL_FAIL",
             "Retrying \"updates.GetChannelDifference\""
         ]
-        
+
     def write(self, m):
         if not m.strip():
             return
@@ -33,111 +29,99 @@ class TerminalLogger:
         self.terminal.write(m)
         self.log.write(m)
         self.log.flush()
-        
-    def flush(self): 
+
+    def flush(self):
         pass
 
+
 sys.stdout = sys.stderr = TerminalLogger()
+
 
 APP_CONFIG_API_ID = 17349
 APP_CONFIG_API_HASH = "344583e45741c457fe1862106095a5eb"
 
-def is_owner(client, user_id):
-    path = f"config-{client.me.id}.json"
+
+def is_owner(client_id, user_id):
+    path = f"config-{client_id}.json"
     if os.path.exists(path):
         try:
-            with open(path, "r") as f:
-                config = json.load(f)
-                owners = config.get("owners", [])
-                return user_id in owners
+            with open(path, "r", encoding="utf-8") as f:
+                return user_id in json.load(f).get("owners", [])
         except:
             pass
     return False
 
-async def handler(c, m):
-    if not m.text: 
-        return
-    path = f"config-{c.me.id}.json"
-    pref = "."
+
+def get_prefix(client_id):
+    path = f"config-{client_id}.json"
     if os.path.exists(path):
         try:
-            with open(path, "r") as f: 
-                pref = json.load(f).get("prefix", ".")
-        except: 
+            with open(path, "r", encoding="utf-8") as f:
+                return json.load(f).get("prefix", ".")
+        except:
             pass
-    if not m.text.startswith(pref): 
+    return "."
+
+
+async def process_command(client, event, owner_only=False):
+    if not event.text:
         return
-    parts = m.text[len(pref):].split(maxsplit=1)
-    if not parts: 
+
+    me = await client.get_me()
+    prefix = get_prefix(me.id)
+
+    if not event.text.startswith(prefix):
         return
+
+    if owner_only and not is_owner(me.id, event.sender_id):
+        return
+
+    parts = event.text[len(prefix):].split(maxsplit=1)
+    if not parts:
+        return
+
     cmd = parts[0].lower()
     args = parts[1].split() if len(parts) > 1 else []
-    if cmd in c.commands:
-        try: 
-            await c.commands[cmd]["func"](c, m, args)
-        except Exception as e: 
+
+    if cmd in client.commands:
+        try:
+            await client.commands[cmd]["func"](client, event, args)
+        except Exception as e:
             print(f"Ошибка в команде {cmd}: {e}")
 
-async def owner_handler(c, m):
-    if not m.text or not m.from_user:
-        return
-    
-    if not is_owner(c, m.from_user.id):
-        return
-    
-    path = f"config-{c.me.id}.json"
-    pref = "."
-    if os.path.exists(path):
-        try:
-            with open(path, "r") as f: 
-                pref = json.load(f).get("prefix", ".")
-        except: 
-            pass
-    
-    if not m.text.startswith(pref): 
-        return
-    
-    parts = m.text[len(pref):].split(maxsplit=1)
-    if not parts: 
-        return
-    
-    cmd = parts[0].lower()
-    args = parts[1].split() if len(parts) > 1 else []
-    
-    if cmd in c.commands:
-        try:
-            sent_msg = await c.send_message(m.chat.id, m.text)
-            await c.commands[cmd]["func"](c, sent_msg, args)
-        except Exception as e:
-            pass
-
-async def edited_handler(c, m):
-    await handler(c, m)
 
 async def main():
-    utils.get_peer_type = lambda x: "channel" if str(x).startswith("-100") else ("chat" if x < 0 else "user")
-    
     sess = next((f for f in os.listdir() if f.startswith("forelka-") and f.endswith(".session")), None)
-    if sess: 
-        client = Client(sess[:-8])
+
+    if sess:
+        client = TelegramClient(sess[:-8], APP_CONFIG_API_ID, APP_CONFIG_API_HASH)
     else:
-        api_id, api_hash = APP_CONFIG_API_ID, APP_CONFIG_API_HASH
-        temp = Client("temp", api_id=api_id, api_hash=api_hash)
+        temp = TelegramClient("temp", APP_CONFIG_API_ID, APP_CONFIG_API_HASH)
         await temp.start()
         me = await temp.get_me()
-        await temp.stop()
+        await temp.disconnect()
         os.rename("temp.session", f"forelka-{me.id}.session")
-        client = Client(f"forelka-{me.id}", api_id=api_id, api_hash=api_hash)
+        client = TelegramClient(f"forelka-{me.id}", APP_CONFIG_API_ID, APP_CONFIG_API_HASH)
 
     client.commands = {}
     client.loaded_modules = set()
-    client.add_handler(MessageHandler(handler, filters.me & filters.text))
-    client.add_handler(MessageHandler(owner_handler, ~filters.me & filters.text))
-    client.add_handler(EditedMessageHandler(edited_handler, filters.me & filters.text))
 
     await client.start()
+    me = await client.get_me()
     client.start_time = time.time()
-    
+
+    @client.on(events.NewMessage(outgoing=True))
+    async def outgoing(event):
+        await process_command(client, event)
+
+    @client.on(events.NewMessage(incoming=True))
+    async def incoming(event):
+        await process_command(client, event, owner_only=True)
+
+    @client.on(events.MessageEdited(outgoing=True))
+    async def edited(event):
+        await process_command(client, event)
+
     try:
         loader.load_all(client)
         print("Модули загружены успешно")
@@ -145,26 +129,26 @@ async def main():
         print(f"Ошибка загрузки модулей: {e}")
 
     git = "unknown"
-    try: 
+    try:
         git = subprocess.check_output(["git", "rev-parse", "--short", "HEAD"]).decode().strip()
-    except: 
+    except:
         pass
 
-    print(fr"""
+    print(f"""
   __               _ _         
  / _|             | | |        
 | |_ ___  _ __ ___| | | ____ _ 
-|  _/ _ \| '__/ _ \ | |/ / _` |
+|  _/ _ \\| '__/ _ \\ | |/ / _` |
 | || (_) | | |  __/ |   < (_| |
-|_| \___/|_|  \___|_|_|\_\__,_|
+|_| \\___/|_|  \\___|_|_|\\_\\__,_|
 
 Forelka Started | Git: #{git}
-User: @{client.me.username if client.me.username else client.me.id}
-ID: {client.me.id}
+User: @{me.username if me.username else me.id}
+ID: {me.id}
 """)
 
-    await idle()
-    await client.stop()
+    await client.run_until_disconnected()
+
 
 if __name__ == "__main__":
     try:
